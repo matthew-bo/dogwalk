@@ -1,0 +1,52 @@
+{
+  "name": "dogwalk-gamble",
+  "version": "1.0.0",
+  "description": "A real-money gambling game where players walk a dog and cash out before a squirrel event",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm --prefix apps/backend run dev\" \"npm --prefix apps/frontend run dev\"",
+    "build": "npm --prefix apps/backend run build && npm --prefix apps/frontend run build",
+    "test": "npm --prefix apps/backend run test && npm --prefix apps/frontend run test",
+    "test:coverage": "npm --prefix apps/backend run test:coverage && npm --prefix apps/frontend run test:coverage",
+    "lint": "npm --prefix apps/backend run lint && npm --prefix apps/frontend run lint",
+    "lint:fix": "npm --prefix apps/backend run lint:fix && npm --prefix apps/frontend run lint:fix",
+    "type-check": "npm --prefix apps/backend run type-check && npm --prefix apps/frontend run type-check",
+    "db:migrate": "npm --prefix apps/backend run db:migrate",
+    "db:generate": "npm --prefix apps/backend run db:generate",
+    "db:studio": "npm --prefix apps/backend run db:studio",
+    "db:seed": "npm --prefix apps/backend run db:seed",
+    "clean": "npm --prefix apps/backend run clean && npm --prefix apps/frontend run clean",
+    "prepare": "husky install"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^5.57.0",
+    "@typescript-eslint/parser": "^5.57.0",
+    "concurrently": "^7.6.0",
+    "eslint": "^8.37.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "husky": "^8.0.3",
+    "lint-staged": "^13.2.0",
+    "prettier": "^2.8.7",
+    "rimraf": "^4.4.0",
+    "typescript": "^5.0.2"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "packageManager": "npm@9.6.4"
+} 

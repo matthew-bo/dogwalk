@@ -1,0 +1,305 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username          String   @unique @db.VarChar(50)
+  email             String   @unique @db.VarChar(255)
+  passwordHash      String   @map("password_hash") @db.VarChar(255)
+  usdBalanceCents   Int      @default(0) @map("usd_balance_cents")
+  isAgeVerified     Boolean  @default(false) @map("is_age_verified")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  transactions      Transaction[]
+  gameSessions      GameSession[]
+  cosmetics         UserCosmetic[]
+  disputes          Dispute[]
+  auditLogs         AuditLog[]
+  cryptoHoldings    CryptoHolding[]
+  
+  @@map("users")
+}
+
+model Transaction {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String           @map("user_id") @db.Uuid
+  type            TransactionType
+  usdAmount       Int              @map("usd_amount") // amount in cents
+  cryptoAmount    BigInt?          @map("crypto_amount") // amount in smallest unit (satoshis/wei)
+  cryptoType      CryptoType?      @map("crypto_type")
+  cryptoTxHash    String?          @map("crypto_tx_hash") @db.VarChar(255)
+  exchangeRate    Decimal?         @map("exchange_rate") @db.Decimal(12,2)
+  status          TransactionStatus @default(PENDING)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  
+  // Relations
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([createdAt])
+  @@index([status])
+  @@map("transactions")
+}
+
+model GameSession {
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String       @map("user_id") @db.Uuid
+  betAmountCents      Int          @map("bet_amount_cents")
+  durationSeconds     Int?         @map("duration_seconds")
+  payoutAmountCents   Int          @default(0) @map("payout_amount_cents")
+  outcome             GameOutcome  @default(INCOMPLETE)
+  squirrelEventTime   Int?         @map("squirrel_event_time")
+  
+  // RNG Data
+  rngSeed             String       @map("rng_seed") @db.VarChar(255)
+  serverSeed          String?      @map("server_seed") @db.VarChar(255) // Revealed after game
+  serverSeedHash      String       @map("server_seed_hash") @db.VarChar(255)
+  clientSeed          String       @map("client_seed") @db.VarChar(255)
+  nonce               BigInt
+  
+  // Timing
+  createdAt           DateTime     @default(now()) @map("created_at")
+  completedAt         DateTime?    @map("completed_at")
+  lastHeartbeat       DateTime     @default(now()) @map("last_heartbeat")
+  
+  // Session state
+  status              SessionStatus @default(ACTIVE)
+  
+  // Relations
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventLogs           GameEventLog[]
+  
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([outcome])
+  @@map("game_sessions")
+}
+
+model GameEventLog {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId     String      @map("session_id") @db.Uuid
+  event         String      @db.VarChar(100)
+  data          Json?
+  serverTime    BigInt      @map("server_time") // Unix timestamp in milliseconds
+  createdAt     DateTime    @default(now()) @map("created_at")
+  
+  // Relations
+  session       GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("game_event_logs")
+}
+
+model UserCosmetic {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String      @map("user_id") @db.Uuid
+  cosmeticType  CosmeticType @map("cosmetic_type")
+  cosmeticId    String      @map("cosmetic_id") @db.VarChar(50)
+  unlockedAt    DateTime    @default(now()) @map("unlocked_at")
+  
+  // Relations
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, cosmeticType, cosmeticId])
+  @@index([userId])
+  @@map("user_cosmetics")
+}
+
+model CryptoHolding {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String    @map("user_id") @db.Uuid
+  cryptoType            CryptoType @map("crypto_type")
+  amount                BigInt    // Amount in smallest unit (satoshis/wei)
+  usdValueAtDeposit     Int       @map("usd_value_at_deposit") // USD cents at time of deposit
+  exchangeRate          Decimal   @map("exchange_rate") @db.Decimal(12,2)
+  createdAt             DateTime  @default(now()) @map("created_at")
+  
+  // Relations
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([cryptoType])
+  @@map("crypto_holdings")
+}
+
+model Dispute {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String        @map("user_id") @db.Uuid
+  type          DisputeType
+  description   String        @db.Text
+  evidence      Json?         // Store evidence as JSON
+  status        DisputeStatus @default(OPEN)
+  resolution    String?       @db.Text
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  
+  // Relations
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  investigations DisputeInvestigation[]
+  
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@map("disputes")
+}
+
+model DisputeInvestigation {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  disputeId                 String    @map("dispute_id") @db.Uuid
+  rngValid                  Boolean?  @map("rng_valid")
+  timingAnomalies           Json?     @map("timing_anomalies")
+  serverLogsConsistent      Boolean?  @map("server_logs_consistent")
+  recommendedAction         String?   @map("recommended_action") @db.VarChar(100)
+  investigatorNotes         String?   @map("investigator_notes") @db.Text
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  
+  // Relations
+  dispute                   Dispute   @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  
+  @@index([disputeId])
+  @@map("dispute_investigations")
+}
+
+model AuditLog {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String?   @map("user_id") @db.Uuid
+  action        String    @db.VarChar(100)
+  details       Json?
+  ipAddress     String?   @map("ip_address") @db.VarChar(45)
+  userAgent     String?   @map("user_agent") @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at")
+  
+  // Relations
+  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model PaymentAttempt {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String              @map("user_id") @db.Uuid
+  provider      String              @db.VarChar(50)
+  amount        Int                 // USD cents
+  status        PaymentAttemptStatus @default(INITIATED)
+  externalId    String?             @map("external_id") @db.VarChar(255)
+  errorMessage  String?             @map("error_message") @db.Text
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  
+  @@index([userId])
+  @@index([provider])
+  @@index([status])
+  @@map("payment_attempts")
+}
+
+// Balance change tracking for audit purposes
+model BalanceChange {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  changeAmount  Int       @map("change_amount") // Positive or negative cents
+  balanceBefore Int       @map("balance_before") // Balance in cents before change
+  balanceAfter  Int       @map("balance_after") // Balance in cents after change
+  reason        String    @db.VarChar(100) // 'deposit', 'withdrawal', 'bet', 'payout', etc.
+  referenceId   String?   @map("reference_id") @db.Uuid // Transaction or game session ID
+  createdAt     DateTime  @default(now()) @map("created_at")
+  
+  @@index([userId])
+  @@index([createdAt])
+  @@map("balance_changes")
+}
+
+// Enums
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  BET
+  PAYOUT
+  REFUND
+  BONUS
+  
+  @@map("transaction_type")
+}
+
+enum TransactionStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  CANCELLED
+  
+  @@map("transaction_status")
+}
+
+enum CryptoType {
+  BTC
+  ETH
+  
+  @@map("crypto_type")
+}
+
+enum GameOutcome {
+  WIN
+  LOSS
+  INCOMPLETE
+  
+  @@map("game_outcome")
+}
+
+enum SessionStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+  EXPIRED
+  
+  @@map("session_status")
+}
+
+enum CosmeticType {
+  DOG_BREED
+  LEASH
+  COLLAR
+  
+  @@map("cosmetic_type")
+}
+
+enum DisputeType {
+  PAYMENT
+  GAME_OUTCOME
+  BALANCE_DISCREPANCY
+  
+  @@map("dispute_type")
+}
+
+enum DisputeStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+  CLOSED
+  
+  @@map("dispute_status")
+}
+
+enum PaymentAttemptStatus {
+  INITIATED
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+  
+  @@map("payment_attempt_status")
+} 
