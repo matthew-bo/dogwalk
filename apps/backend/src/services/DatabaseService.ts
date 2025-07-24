@@ -23,12 +23,24 @@ class DatabaseServiceClass {
     return DatabaseServiceClass.instance;
   }
 
-  public async connect(): Promise<void> {
+  async connect(): Promise<void> {
     try {
+      console.log('📦 Connecting to database...');
       await this.prisma.$connect();
       console.log('✅ Database connected successfully');
     } catch (error) {
       console.error('❌ Database connection failed:', error);
+      
+      // In development, we can continue without database for basic functionality
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('⚠️  Continuing without database in development mode');
+        console.warn('   - User registration/login will be disabled');
+        console.warn('   - Game sessions will use memory storage');
+        console.warn('   - Install PostgreSQL or use Docker for full functionality');
+        return;
+      }
+      
+      // In production, database is required
       throw error;
     }
   }

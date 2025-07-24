@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import { GameProvider } from './contexts/GameContext';
+import { EnhancedGameProvider } from './contexts/EnhancedGameContext';
 import { AuthModalProvider } from './contexts/AuthModalContext';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import './index.css';
@@ -33,19 +34,21 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <AuthProvider>
             <AuthModalProvider>
               <GameProvider>
-                <App />
-              <Toaster
-                position="top-center"
-                toastOptions={{
-                  duration: 4000,
-                  style: {
-                    background: '#1f2937',
-                    color: '#f9fafb',
-                    border: '1px solid #374151'
-                  }
-                }}
-              />
-                          </GameProvider>
+                <EnhancedGameProvider>
+                  <App />
+                  <Toaster
+                    position="top-center"
+                    toastOptions={{
+                      duration: 4000,
+                      style: {
+                        background: '#1f2937',
+                        color: '#f9fafb',
+                        border: '1px solid #374151'
+                      }
+                    }}
+                  />
+                </EnhancedGameProvider>
+              </GameProvider>
             </AuthModalProvider>
           </AuthProvider>
         </QueryClientProvider>

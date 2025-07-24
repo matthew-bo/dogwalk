@@ -200,7 +200,7 @@ export class UserService {
         // Check if requirements are met
         const requirementMet = await UserService.checkUnlockRequirement(
           userId, 
-          breed.unlockRequirement || ''
+          (breed as any).unlockRequirement || ''
         );
 
         return {
@@ -285,7 +285,7 @@ export class UserService {
       username: session.user.username,
       value: session.payoutAmountCents / 100, // Convert to dollars
       gameSessionId: session.id,
-      createdAt: session.completedAt?.toISOString() || session.createdAt.toISOString()
+      createdAt: new Date(session.completedAt || session.createdAt)
     }));
 
     const longestWalksEntries: LeaderboardEntry[] = longestWalks.map(session => ({
@@ -293,7 +293,7 @@ export class UserService {
       username: session.user.username,
       value: session.durationSeconds || 0,
       gameSessionId: session.id,
-      createdAt: session.completedAt?.toISOString() || session.createdAt.toISOString()
+      createdAt: new Date(session.completedAt || session.createdAt)
     }));
 
     return {

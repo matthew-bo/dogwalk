@@ -2,7 +2,7 @@ import { GameConfig } from '../types';
 
 // Game configuration constants
 export const GAME_CONFIG: GameConfig = {
-  MIN_BET_CENTS: 500, // $5.00
+  MIN_BET_CENTS: 50, // $0.50
   MAX_BET_CENTS: 10000000, // $100,000
   MAX_GAME_DURATION: 30, // seconds
   BASE_HOUSE_EDGE: 0.08, // 8% house edge
@@ -16,9 +16,18 @@ export const GAME_CONFIG: GameConfig = {
   },
 
   getPayoutMultiplier: (seconds: number): number => {
-    // Base multiplier grows exponentially but adjusted for house edge
-    const baseMultiplier = 1 + (seconds * 0.15) + Math.pow(seconds * 0.1, 1.8);
-    return Math.round(baseMultiplier * (1 - 0.08) * 100) / 100; // Fixed circular reference
+    // Calculate cumulative survival probability
+    let survivalProb = 1;
+    for (let i = 1; i <= seconds; i++) {
+      survivalProb *= (1 - GAME_CONFIG.getRiskPerSecond(i));
+    }
+    
+    // House edge compliant formula: M(s) = (1 - HE) / p_survive(s)
+    // This ensures expected value is always exactly (1 - HE), maintaining house edge
+    const multiplier = (1 - GAME_CONFIG.BASE_HOUSE_EDGE) / survivalProb;
+    
+    // Round to 2 decimal places for consistency
+    return Math.round(multiplier * 100) / 100;
   }
 } as const;
 
@@ -31,12 +40,21 @@ export const API_ENDPOINTS = {
   AUTH_ME: '/api/auth/me',
   AUTH_REFRESH: '/api/auth/refresh',
 
-  // Game
+  // Game (Original)
   GAME_START: '/api/game/start',
   GAME_CASHOUT: '/api/game/cashout',
   GAME_HISTORY: '/api/game/history',
   GAME_VERIFY: '/api/game/verify',
   GAME_ACTIVE_SESSIONS: '/api/game/active-sessions',
+
+  // Enhanced Game
+  ENHANCED_GAME_START: '/api/enhanced-game/start',
+  ENHANCED_GAME_CASHOUT: '/api/enhanced-game/cashout',
+  ENHANCED_GAME_EVENT_CHOICE: '/api/enhanced-game/event-choice',
+  ENHANCED_GAME_STATE: '/api/enhanced-game/state',
+  ENHANCED_GAME_MINI_GAMES: '/api/enhanced-game/mini-games',
+  ENHANCED_GAME_JACKPOT: '/api/enhanced-game/jackpot',
+  ENHANCED_GAME_LEASH_SLACK: '/api/enhanced-game/use-leash-slack',
 
   // Payments
   PAYMENTS_DEPOSIT: '/api/payments/deposit',
@@ -186,7 +204,7 @@ export const getApiUrl = (env: string = 'development'): string => {
     case 'staging':
       return 'https://staging-api.dogwalkgamble.com';
     default:
-      return 'http://localhost:3001';
+      return 'http://localhost:3002'; // Updated from 3001 to 3002
   }
 };
 
@@ -197,6 +215,6 @@ export const getWebSocketUrl = (env: string = 'development'): string => {
     case 'staging':
       return 'wss://staging-api.dogwalkgamble.com';
     default:
-      return 'ws://localhost:3001';
+      return 'ws://localhost:3002'; // Updated from 3001 to 3002
   }
 }; 

@@ -6,7 +6,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import AuthModal from './components/auth/AuthModal';
 import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
-import GamePage from './pages/GamePage';
+import EnhancedGamePage from './pages/EnhancedGamePage';
 import ProfilePage from './pages/ProfilePage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import AdminPage from './pages/AdminPage';
@@ -32,7 +32,7 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           
           {/* Public Game Route - No Login Required */}
-          <Route path="/game" element={<GamePage />} />
+          <Route path="/game" element={<EnhancedGamePage />} />
           
           {/* Protected Routes - Require Login */}
           <Route

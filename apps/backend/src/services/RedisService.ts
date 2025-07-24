@@ -2,43 +2,71 @@ import Redis from 'ioredis';
 
 class RedisServiceClass {
   private static instance: RedisServiceClass;
-  public redis: Redis;
+  public redis: Redis | null = null;
+  private isConnected: boolean = false;
+  private developmentMode: boolean = false;
+  private hasLoggedError: boolean = false; // Prevent spam logging
 
   private constructor() {
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    this.developmentMode = process.env.NODE_ENV === 'development';
     
-    this.redis = new Redis(redisUrl, {
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
-      // Reconnection settings
-      reconnectOnError: (err) => {
-        const targetError = 'READONLY';
-        return err.message.includes(targetError);
-      },
-      // Retry strategy
-      enableOfflineQueue: false,
-    });
+    try {
+      this.redis = new Redis(redisUrl, {
+        maxRetriesPerRequest: this.developmentMode ? 0 : 3,
+        lazyConnect: true,
+        connectTimeout: 2000, // Fast timeout
+        // Completely disable reconnection in development
+        reconnectOnError: () => false,
+        enableOfflineQueue: false,
+      });
 
-    // Event handlers
-    this.redis.on('connect', () => {
-      console.log('✅ Redis connected successfully');
-    });
+      // Event handlers
+      this.redis.on('connect', () => {
+        console.log('✅ Redis connected successfully');
+        this.isConnected = true;
+      });
 
-    this.redis.on('error', (error) => {
-      console.error('❌ Redis connection error:', error);
-    });
+      this.redis.on('error', (error) => {
+        this.isConnected = false;
+        
+        if (this.developmentMode) {
+          // Only log once in development, don't spam
+          if (!this.hasLoggedError) {
+            console.warn('⚠️ Redis unavailable in development mode - using memory fallback');
+            console.warn('   - Session management will use memory storage');
+            console.warn('   - Install Redis with: winget install Redis.Redis');
+            this.hasLoggedError = true;
+          }
+          return;
+        }
+        
+        console.error('❌ Redis connection error:', error);
+      });
 
-    this.redis.on('ready', () => {
-      console.log('✅ Redis is ready to accept commands');
-    });
+      this.redis.on('ready', () => {
+        console.log('✅ Redis is ready to accept commands');
+        this.isConnected = true;
+      });
 
-    this.redis.on('close', () => {
-      console.log('⚠️ Redis connection closed');
-    });
+      this.redis.on('close', () => {
+        this.isConnected = false;
+        if (!this.developmentMode) {
+          console.log('⚠️ Redis connection closed');
+        }
+      });
 
-    this.redis.on('reconnecting', () => {
-      console.log('🔄 Redis reconnecting...');
-    });
+      // Remove reconnecting event handler to prevent spam
+      
+    } catch (error) {
+      console.error('❌ Failed to initialize Redis:', error);
+      if (this.developmentMode) {
+        console.warn('⚠️ Continuing without Redis in development mode');
+        this.redis = null;
+      } else {
+        throw error;
+      }
+    }
   }
 
   public static getInstance(): RedisServiceClass {
@@ -49,6 +77,10 @@ class RedisServiceClass {
   }
 
   public async connect(): Promise<void> {
+    if (!this.redis) {
+      console.error('Redis is not initialized. Cannot connect.');
+      return;
+    }
     try {
       await this.redis.connect();
     } catch (error) {
@@ -58,6 +90,10 @@ class RedisServiceClass {
   }
 
   public async disconnect(): Promise<void> {
+    if (!this.redis) {
+      console.warn('Redis is not initialized. Cannot disconnect.');
+      return;
+    }
     try {
       await this.redis.quit();
       console.log('✅ Redis disconnected successfully');
@@ -68,6 +104,10 @@ class RedisServiceClass {
   }
 
   public async healthCheck(): Promise<boolean> {
+    if (!this.redis) {
+      console.warn('Redis is not initialized. Cannot perform health check.');
+      return false;
+    }
     try {
       const response = await this.redis.ping();
       return response === 'PONG';
@@ -79,44 +119,79 @@ class RedisServiceClass {
 
   // Session management methods
   public async setSession(sessionId: string, data: Record<string, any>, ttlSeconds: number = 3600): Promise<void> {
+    if (!this.redis) {
+      console.warn('Redis is not initialized. Cannot set session.');
+      return;
+    }
     await this.redis.setex(`session:${sessionId}`, ttlSeconds, JSON.stringify(data));
   }
 
   public async getSession(sessionId: string): Promise<Record<string, any> | null> {
+    if (!this.redis) {
+      console.warn('Redis is not initialized. Cannot get session.');
+      return null;
+    }
     const data = await this.redis.get(`session:${sessionId}`);
     return data ? JSON.parse(data) : null;
   }
 
   public async deleteSession(sessionId: string): Promise<void> {
+    if (!this.redis) {
+      console.warn('Redis is not initialized. Cannot delete session.');
+      return;
+    }
     await this.redis.del(`session:${sessionId}`);
   }
 
   public async updateSessionTTL(sessionId: string, ttlSeconds: number): Promise<void> {
+    if (!this.redis) {
+      console.warn('Redis is not initialized. Cannot update session TTL.');
+      return;
+    }
     await this.redis.expire(`session:${sessionId}`, ttlSeconds);
   }
 
   // Token blacklisting
   public async blacklistToken(token: string, expirySeconds: number): Promise<void> {
+    if (!this.redis) {
+      console.warn('Redis is not initialized. Cannot blacklist token.');
+      return;
+    }
     await this.redis.setex(`blacklist:${token}`, expirySeconds, '1');
   }
 
   public async isTokenBlacklisted(token: string): Promise<boolean> {
+    if (!this.redis) {
+      console.warn('Redis is not initialized. Cannot check token blacklist.');
+      return false;
+    }
     const result = await this.redis.get(`blacklist:${token}`);
     return result === '1';
   }
 
   // Rate limiting
   public async incrementRateLimit(key: string, windowSeconds: number): Promise<number> {
+    if (!this.redis) {
+      console.warn('Redis is not initialized. Cannot increment rate limit.');
+      return 0;
+    }
+    
     const multi = this.redis.multi();
     multi.incr(key);
     multi.expire(key, windowSeconds);
     const results = await multi.exec();
-    return results?.[0]?.[1] as number || 0;
+    
+    return results ? (results[0][1] as number) : 0;
   }
 
   public async getRateLimit(key: string): Promise<number> {
-    const count = await this.redis.get(key);
-    return count ? parseInt(count, 10) : 0;
+    if (!this.redis) {
+      console.warn('Redis is not initialized. Cannot get rate limit.');
+      return 0;
+    }
+    
+    const result = await this.redis.get(key);
+    return result ? parseInt(result, 10) : 0;
   }
 
   // Game session management
@@ -151,16 +226,36 @@ class RedisServiceClass {
   }
 
   // Cache management
-  public async setCache<T>(key: string, value: T, ttlSeconds: number = 300): Promise<void> {
-    await this.redis.setex(`cache:${key}`, ttlSeconds, JSON.stringify(value));
+  public async setCache(key: string, value: any, ttlSeconds?: number): Promise<void> {
+    if (!this.redis) {
+      console.warn('Redis is not initialized. Cannot set cache.');
+      return;
+    }
+    
+    const serializedValue = JSON.stringify(value);
+    if (ttlSeconds) {
+      await this.redis.setex(key, ttlSeconds, serializedValue);
+    } else {
+      await this.redis.set(key, serializedValue);
+    }
   }
 
-  public async getCache<T>(key: string): Promise<T | null> {
-    const data = await this.redis.get(`cache:${key}`);
-    return data ? JSON.parse(data) : null;
+  public async getCache(key: string): Promise<any> {
+    if (!this.redis) {
+      console.warn('Redis is not initialized. Cannot get cache.');
+      return null;
+    }
+    
+    const result = await this.redis.get(key);
+    return result ? JSON.parse(result) : null;
   }
 
   public async deleteCache(key: string): Promise<void> {
+    if (!this.redis) {
+      console.warn('Redis is not initialized. Cannot delete cache.');
+      return;
+    }
+    
     await this.redis.del(`cache:${key}`);
   }
 

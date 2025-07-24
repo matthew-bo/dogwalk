@@ -6,25 +6,28 @@ import morgan from 'morgan';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import dotenv from 'dotenv';
+import path from 'path'; // Added for serving static files
 
-import { rateLimiter } from '@/middleware/rateLimiter';
-import { requestLogger } from '@/middleware/requestLogger';
-import { errorHandler } from '@/middleware/errorHandler';
+import { rateLimiter } from './middleware/rateLimiter';
+import { requestLogger } from './middleware/requestLogger';
+import { errorHandler } from './middleware/errorHandler';
 
 // Route imports
-import authRoutes from '@/routes/auth';
-import gameRoutes from '@/routes/game';
-import paymentRoutes from '@/routes/payment';
-import userRoutes from '@/routes/user';
-import webhookRoutes from '@/routes/webhook';
-import adminRoutes from '@/routes/admin';
+import authRoutes from './routes/auth';
+import gameRoutes from './routes/game';
+import { enhancedGameRoutes } from './routes/enhancedGame';
+import paymentRoutes from './routes/payment';
+import userRoutes from './routes/user';
+import webhookRoutes from './routes/webhook';
+import adminRoutes from './routes/admin';
 
 // Service imports
-import { RedisService } from '@/services/RedisService';
-import { DatabaseService } from '@/services/DatabaseService';
-import { GameSocketHandler } from '@/services/GameSocketHandler';
-import { SessionCleanupService } from '@/services/SessionCleanupService';
-import { MonitoringService } from '@/services/MonitoringService';
+import { RedisService } from './services/RedisService';
+import { DatabaseService } from './services/DatabaseService';
+import { GameSocketHandler } from './services/GameSocketHandler';
+import { EnhancedGameSocketHandler } from './services/EnhancedGameSocketHandler';
+import { SessionCleanupService } from './services/SessionCleanupService';
+import { MonitoringService } from './services/MonitoringService';
 
 // Load environment variables
 dotenv.config();
@@ -45,7 +48,7 @@ class App {
         credentials: true
       }
     });
-    this.port = parseInt(process.env.PORT || '3001', 10);
+    this.port = parseInt(process.env.PORT || '3002', 10); // Changed from 3001 to 3002
 
     this.initializeMiddleware();
     this.initializeRoutes();
@@ -104,6 +107,7 @@ class App {
     // API routes
     this.app.use('/api/auth', authRoutes);
     this.app.use('/api/game', gameRoutes);
+    this.app.use('/api/enhanced-game', enhancedGameRoutes);
     this.app.use('/api/payments', paymentRoutes);
     this.app.use('/api/user', userRoutes);
     this.app.use('/api/webhooks', webhookRoutes);
@@ -124,6 +128,7 @@ class App {
   private initializeWebSocket(): void {
     // Initialize WebSocket handlers
     new GameSocketHandler(this.io);
+    new EnhancedGameSocketHandler(this.io);
   }
 
   private initializeErrorHandling(): void {
@@ -183,26 +188,62 @@ class App {
 
   public async start(): Promise<void> {
     try {
-      // Initialize services
+      // Initialize Database
       await DatabaseService.connect();
-      await RedisService.connect();
       
-      // Start background services
-      SessionCleanupService.start();
-      MonitoringService.startMonitoring();
+      // Initialize Redis (optional in development)
+      try {
+        await RedisService.connect();
+      } catch (redisError) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('⚠️ Redis connection failed in development mode - continuing without Redis');
+          console.warn('   - Session management will use memory storage');
+          console.warn('   - Rate limiting will be disabled');
+          console.warn('   - Install Redis for full functionality: redis-server');
+        } else {
+          console.error('❌ Redis connection failed in production:', redisError);
+          throw redisError; // Redis is required in production
+        }
+      }
 
-      // Start server
+      // Setup Socket.IO with the HTTP server
+      const io = new SocketIOServer(this.server, {
+        cors: {
+          origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+          methods: ["GET", "POST"],
+          credentials: true
+        }
+      });
+
+      // Initialize game socket handler
+      // GameSocketHandler.init(io);
+
+      // Start monitoring service
+      // MonitoringService.start();
+
+      // Start session cleanup service (will handle missing Redis gracefully)
+      SessionCleanupService.start();
+
+      // Start HTTP server
       this.server.listen(this.port, () => {
         console.log(`🚀 Server running on port ${this.port}`);
         console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-        console.log(`🔗 WebSocket enabled`);
-        console.log(`💾 Database connected`);
-        console.log(`⚡ Redis connected`);
-        console.log(`🔍 Monitoring active`);
+        console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN || "http://localhost:5173"}`);
+        console.log(`📁 Serving static files from: ${path.join(__dirname, '../../../apps/frontend/dist')}`);
       });
+
     } catch (error) {
       console.error('Failed to start server:', error);
-      process.exit(1);
+      
+      // Cleanup connections
+      try {
+        await DatabaseService.disconnect();
+        await RedisService.disconnect();
+      } catch (cleanupError) {
+        console.error('Error during cleanup:', cleanupError);
+      }
+      
+      throw error;
     }
   }
 }

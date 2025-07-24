@@ -260,20 +260,16 @@ export class AuthService {
   }
 
   private static async generateTokens(user: User): Promise<{ accessToken: string; refreshToken: string }> {
-    const payload: Omit<JWTPayload, 'iat' | 'exp'> = {
+    const payload = {
       userId: user.id,
       username: user.username
     };
 
-    // Generate access token
-    const accessToken = jwt.sign(payload, AuthService.getJWTSecret(), {
-      expiresIn: AuthService.JWT_ACCESS_TOKEN_EXPIRY
-    });
+    const secret = AuthService.getJWTSecret();
 
-    // Generate refresh token
-    const refreshToken = jwt.sign(payload, AuthService.getJWTSecret(), {
-      expiresIn: AuthService.JWT_REFRESH_TOKEN_EXPIRY
-    });
+    // Temporary simple token generation for development
+    const accessToken = jwt.sign(payload, secret, { expiresIn: '15m' });
+    const refreshToken = jwt.sign(payload, secret, { expiresIn: '7d' });
 
     return { accessToken, refreshToken };
   }

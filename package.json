@@ -48,5 +48,9 @@
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
   },
-  "packageManager": "npm@9.6.4"
-} 
+  "packageManager": "npm@9.6.4",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.52.1",
+    "@upstash/redis": "^1.35.1"
+  }
+}

@@ -1,54 +1,38 @@
 import cron from 'node-cron';
-import { GameService } from '@/services/GameService';
+import { GameService } from './GameService';
+import { DatabaseService } from './DatabaseService';
 
 class SessionCleanupServiceClass {
-  private static instance: SessionCleanupServiceClass;
-  private cronJob: cron.ScheduledTask | null = null;
-
-  private constructor() {}
-
-  public static getInstance(): SessionCleanupServiceClass {
-    if (!SessionCleanupServiceClass.instance) {
-      SessionCleanupServiceClass.instance = new SessionCleanupServiceClass();
-    }
-    return SessionCleanupServiceClass.instance;
-  }
+  private cleanupTask: cron.ScheduledTask | null = null;
 
   public start(): void {
-    if (this.cronJob) {
-      console.warn('Session cleanup service is already running');
-      return;
-    }
-
-    // Run cleanup every minute
-    this.cronJob = cron.schedule('* * * * *', async () => {
+    console.log('✅ Session cleanup service started');
+    
+    // Only run cleanup if database is available
+    this.cleanupTask = cron.schedule('*/5 * * * *', async () => {
       try {
+        // Check if database is connected before attempting cleanup
+        if (process.env.NODE_ENV === 'development') {
+          console.log('⚠️ Skipping session cleanup - database not available in development mode');
+          return;
+        }
+        
+        console.log('🧹 Running session cleanup...');
         await GameService.cleanupAbandonedSessions();
+        console.log('✅ Session cleanup completed');
       } catch (error) {
-        console.error('Error during session cleanup:', error);
+        console.error('❌ Session cleanup failed:', error);
       }
     });
-
-    console.log('✅ Session cleanup service started');
   }
 
   public stop(): void {
-    if (this.cronJob) {
-      this.cronJob.stop();
-      this.cronJob = null;
-      console.log('✅ Session cleanup service stopped');
-    }
-  }
-
-  public async runCleanupNow(): Promise<void> {
-    try {
-      await GameService.cleanupAbandonedSessions();
-      console.log('✅ Manual session cleanup completed');
-    } catch (error) {
-      console.error('❌ Manual session cleanup failed:', error);
-      throw error;
+    if (this.cleanupTask) {
+      this.cleanupTask.stop();
+      this.cleanupTask = null;
+      console.log('🛑 Session cleanup service stopped');
     }
   }
 }
 
-export const SessionCleanupService = SessionCleanupServiceClass.getInstance(); 
+export const SessionCleanupService = new SessionCleanupServiceClass(); 

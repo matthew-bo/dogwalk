@@ -38,7 +38,7 @@ export const paymentService = {
   async getCryptoPrices(): Promise<CryptoPrices> {
     try {
       const response = await apiClient.get<{ success: boolean; data: CryptoPrices }>('/payments/prices');
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('Get crypto prices error:', error);
       // Return fallback prices if API fails
@@ -52,7 +52,7 @@ export const paymentService = {
         currency,
         userId
       });
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('Create deposit address error:', error);
       throw error;
@@ -67,7 +67,7 @@ export const paymentService = {
         usdAmount,
         userId
       });
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('Create withdrawal error:', error);
       throw error;
@@ -79,8 +79,8 @@ export const paymentService = {
       const params: any = { limit, offset };
       if (type) params.type = type;
 
-      const response = await apiClient.get<{ success: boolean; data: { transactions: Transaction[]; total: number } }>('/payments/transactions', params);
-      return response.data;
+      const response = await apiClient.get<{ success: boolean; data: { transactions: Transaction[]; total: number } }>('/payments/transactions', { params });
+      return response.data.data;
     } catch (error: any) {
       console.error('Get transaction history error:', error);
       throw error;
@@ -90,7 +90,7 @@ export const paymentService = {
   async getUserBalance(): Promise<UserBalance> {
     try {
       const response = await apiClient.get<{ success: boolean; data: UserBalance }>('/payments/balance');
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('Get user balance error:', error);
       throw error;

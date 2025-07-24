@@ -297,4 +297,68 @@ export interface AuthenticatedRequest extends Request {
   query: any;
   params: any;
   headers: any;
+}
+
+// Enhanced Game Session Types
+export interface GameEventType {
+  type: 'squirrel' | 'mini_bonus' | 'fetch_opportunity' | 'butterfly_chase' | 'progressive_jackpot' | 'safe_zone' | 'double_down';
+  second: number;
+  parameters?: Record<string, any>;
+}
+
+export interface GameSessionEnhanced extends GameSession {
+  // Multiple events predetermined by RNG
+  events: GameEventType[];
+  
+  // Active power-ups and bonuses
+  activeBonuses: {
+    leashSlackUsed: boolean;
+    fetchActiveUntil?: number;
+    butterflyBonus?: number;
+    riskMultiplier: number;
+    payoutMultiplier: number;
+  };
+  
+  // Player choices made during game
+  playerChoices: {
+    second: number;
+    eventType: string;
+    choice: 'accept' | 'decline' | 'use_powerup';
+    parameters?: Record<string, any>;
+  }[];
+}
+
+export interface MiniGameEvent {
+  id: string;
+  type: 'bonus_treat' | 'fetch_game' | 'butterfly_chase';
+  title: string;
+  description: string;
+  riskDescription: string;
+  rewardDescription: string;
+  acceptAction: string;
+  declineAction: string;
+  timeLimit: number; // seconds to make choice
+  
+  // Risk/Reward parameters
+  successProbability: number;
+  successReward: {
+    type: 'multiplier_bonus' | 'time_bonus' | 'jackpot_chance';
+    value: number;
+  };
+  failurePenalty: {
+    type: 'risk_increase' | 'multiplier_reduction' | 'immediate_loss';
+    value: number;
+  };
+}
+
+export interface ProgressiveJackpot {
+  id: string;
+  currentAmount: number;
+  triggerProbability: number;
+  minimumWalkTime: number;
+  lastWinner?: {
+    username: string;
+    amount: number;
+    timestamp: Date;
+  };
 } 

@@ -12,7 +12,7 @@ export const gameService = {
       const response = await apiClient.post<{ success: boolean; data: StartGameResponse }>('/game/start', {
         betAmount
       });
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('Start game error:', error);
       throw error;
@@ -25,7 +25,7 @@ export const gameService = {
         sessionId,
         cashoutSecond
       });
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('Cash out error:', error);
       throw error;
@@ -35,10 +35,9 @@ export const gameService = {
   async getGameHistory(limit = 20, offset = 0): Promise<{ games: GameSession[]; total: number }> {
     try {
       const response = await apiClient.get<{ success: boolean; data: { games: GameSession[]; total: number } }>('/game/history', {
-        limit,
-        offset
+        params: { limit, offset }
       });
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('Get game history error:', error);
       throw error;
@@ -48,7 +47,7 @@ export const gameService = {
   async getActiveSessions(): Promise<string[]> {
     try {
       const response = await apiClient.get<{ success: boolean; data: { activeSessions: string[] } }>('/game/active-sessions');
-      return response.data.activeSessions || [];
+      return response.data.data.activeSessions || [];
     } catch (error: any) {
       console.error('Get active sessions error:', error);
       throw error;
@@ -58,7 +57,7 @@ export const gameService = {
   async verifyGame(sessionId: string): Promise<GameVerification> {
     try {
       const response = await apiClient.get<{ success: boolean; data: GameVerification }>(`/game/verify/${sessionId}`);
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('Verify game error:', error);
       throw error;

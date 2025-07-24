@@ -47,6 +47,8 @@ const WithdrawalModal: React.FC<WithdrawalModalProps> = ({ isOpen, onClose, onWi
       const priceInterval = setInterval(fetchCryptoPrices, 30000);
       return () => clearInterval(priceInterval);
     }
+    // Explicitly return undefined when modal is not open
+    return undefined;
   }, [isOpen]);
 
   const userBalance = (user?.usdBalanceCents || 0) / 100;

@@ -2,6 +2,7 @@ import { prisma } from '@/services/DatabaseService';
 import { RedisService } from '@/services/RedisService';
 import { ErrorHandler } from '@/middleware/errorHandler';
 import { PrismaClient } from '@prisma/client';
+import axios from 'axios';
 
 // Import types (work around for shared module import issue)
 interface DepositResponse {
@@ -37,10 +38,10 @@ const ERROR_CODES = {
   SYSTEM_ERROR: 'SYSTEM_ERROR'
 } as const;
 
-// API response interfaces
+// Define proper interfaces for API responses
 interface CoinGeckoResponse {
-  bitcoin?: { usd: number };
-  ethereum?: { usd: number };
+  bitcoin: { usd: number };
+  ethereum: { usd: number };
 }
 
 interface CoinbaseResponse {
@@ -257,58 +258,32 @@ export class PaymentService {
 
       // Fetch real prices from CoinGecko API
       try {
-        const response = await fetch(
-          'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd',
-          {
-            headers: {
-              'Accept': 'application/json',
-              'User-Agent': 'DogWalkGamble/1.0'
-            },
-            // Timeout after 5 seconds
-            signal: AbortSignal.timeout(5000)
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`CoinGecko API error: ${response.status}`);
-        }
-
-        const data = await response.json();
+        const response = await axios.get<CoinGeckoResponse>('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd');
+        const data = response.data;
         
-        const prices = {
+        return {
           BTC: data.bitcoin?.usd || 45000, // Fallback if API fails
           ETH: data.ethereum?.usd || 2800   // Fallback if API fails
         };
 
-        // Cache for 60 seconds (CoinGecko allows frequent requests)
-        await RedisService.setExchangeRates(JSON.stringify(prices), 60);
-        
-        console.log('Updated crypto prices from CoinGecko:', prices);
-        return prices;
-
       } catch (apiError) {
         console.warn('CoinGecko API failed, using fallback prices:', apiError);
         
-        // Try backup API (Coinbase Pro)
+        // Try Coinbase Pro API as backup
         try {
           const [btcResponse, ethResponse] = await Promise.all([
-            fetch('https://api.coinbase.com/v2/exchange-rates?currency=BTC'),
-            fetch('https://api.coinbase.com/v2/exchange-rates?currency=ETH')
+            axios.get<CoinbaseResponse>('https://api.coinbase.com/v2/exchange-rates?currency=BTC'),
+            axios.get<CoinbaseResponse>('https://api.coinbase.com/v2/exchange-rates?currency=ETH')
           ]);
 
-          if (btcResponse.ok && ethResponse.ok) {
-            const btcData = await btcResponse.json();
-            const ethData = await ethResponse.json();
+          const btcData = btcResponse.data;
+          const ethData = ethResponse.data;
 
-            const prices = {
-              BTC: parseFloat(btcData.data.rates.USD) || 45000,
-              ETH: parseFloat(ethData.data.rates.USD) || 2800
-            };
+          return {
+            BTC: parseFloat(btcData.data.rates.USD) || 45000,
+            ETH: parseFloat(ethData.data.rates.USD) || 2800
+          };
 
-            await RedisService.setExchangeRates(JSON.stringify(prices), 60);
-            console.log('Updated crypto prices from Coinbase:', prices);
-            return prices;
-          }
         } catch (backupError) {
           console.warn('Backup price API also failed:', backupError);
         }

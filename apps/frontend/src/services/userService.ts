@@ -51,7 +51,7 @@ export const userService = {
   async getProfile(): Promise<UserProfile> {
     try {
       const response = await apiClient.get<{ success: boolean; data: UserProfile }>('/user/profile');
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('Get user profile error:', error);
       throw error;
@@ -61,7 +61,7 @@ export const userService = {
   async updateProfile(updates: UpdateProfileRequest): Promise<UserProfile> {
     try {
       const response = await apiClient.put<{ success: boolean; data: UserProfile }>('/user/profile', updates);
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('Update user profile error:', error);
       throw error;
@@ -71,7 +71,7 @@ export const userService = {
   async getUserStats(): Promise<UserStats> {
     try {
       const response = await apiClient.get<{ success: boolean; data: UserStats }>('/user/stats');
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('Get user stats error:', error);
       throw error;
@@ -81,7 +81,7 @@ export const userService = {
   async getUserCosmetics(): Promise<UserCosmetic[]> {
     try {
       const response = await apiClient.get<{ success: boolean; data: UserCosmetic[] }>('/user/cosmetics');
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('Get user cosmetics error:', error);
       throw error;
@@ -91,9 +91,9 @@ export const userService = {
   async getLeaderboard(period: 'daily' | 'weekly' | 'all-time' = 'all-time'): Promise<Leaderboard> {
     try {
       const response = await apiClient.get<{ success: boolean; data: Leaderboard }>('/user/leaderboard', {
-        period
+        params: { period }
       });
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('Get leaderboard error:', error);
       throw error;
